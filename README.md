@@ -24,49 +24,55 @@ Everything in this repo is managed through code and GitOps. If it's not in git, 
 
 ```mermaid
 graph TB
-    subgraph "GCP Project"
-        subgraph "VPC — prod-gke-vpc"
-            subgraph "GKE Cluster — prod-gke (Regional, Private Nodes)"
-                subgraph "System Node Pool (On-Demand e2-standard-4)"
-                    ARGOCD[ArgoCD\nApp-of-Apps GitOps]
-                    ISTIO[Istiod\nmTLS Control Plane]
-                    PROM[Prometheus\nGrafana AlertManager]
-                    VAULT[HashiCorp Vault\nHA Raft + GCP KMS Seal]
-                    ESO[External Secrets\nOperator]
+    subgraph GCP["GCP Project"]
+        subgraph VPC["VPC: prod-gke-vpc"]
+            subgraph CLUSTER["GKE Cluster: prod-gke - Regional, Private Nodes"]
+                subgraph SYS["System Node Pool - On-Demand e2-standard-4"]
+                    ARGOCD[ArgoCD - App-of-Apps GitOps]
+                    ISTIO[Istiod - mTLS Control Plane]
+                    PROM[Prometheus + Grafana]
+                    VAULT[HashiCorp Vault - HA Raft]
+                    ESO[External Secrets Operator]
                 end
-                subgraph "Spot Node Pool (e2-standard-4, 0→10)"
-                    TA[team-alpha\nNamespace + Quotas + RBAC]
-                    TB[team-beta\nNamespace + Quotas + RBAC]
-                    APP[go-metrics-api\nGo + Prometheus + HPA + VPA]
+                subgraph SPOT["Spot Node Pool - e2-standard-4, scales 0 to 10"]
+                    TA[team-alpha - Namespace + Quotas + RBAC]
+                    TB[team-beta - Namespace + Quotas + RBAC]
+                    APP[go-metrics-api - Go + Prometheus + HPA + VPA]
                 end
-                subgraph "NAP Pools (Auto-Provisioned on Demand)"
-                    NAP[Node Auto Provisioning\nGKE-native Karpenter equivalent]
+                subgraph NAPP["NAP Pools - Auto-Provisioned on Demand"]
+                    NAP[Node Auto Provisioning - GKE Karpenter equivalent]
                 end
             end
-            NAT[Cloud NAT\nPrivate Node Egress]
-            IAP[IAP Tunnel\nSecure SSH No Bastion]
+            NAT[Cloud NAT - Private Node Egress]
+            IAP[IAP Tunnel - Secure SSH]
         end
-        subgraph "GCP Services"
-            WI[Workload Identity\nNo SA Keys]
-            SM[Secret Manager\nESO Backend]
-            KMS[Cloud KMS\nVault Auto-Unseal]
-            AR[Artifact Registry\nContainer Images]
+        subgraph GCPSVC["GCP Services"]
+            WI[Workload Identity - No SA Keys]
+            SM[Secret Manager - ESO Backend]
+            KMS[Cloud KMS - Vault Auto-Unseal]
+            AR[Artifact Registry - Container Images]
         end
     end
 
-    subgraph "GitOps Flow"
-        GIT[GitHub — prod-gke-platform] -->|webhook| ARGOCD
-        ARGOCD -->|sync| TA
-        ARGOCD -->|sync| TB
-        ARGOCD -->|sync| ISTIO
-        ARGOCD -->|sync| PROM
-        ARGOCD -->|sync| VAULT
+    subgraph GITOPS["GitOps Flow"]
+        GIT[GitHub - prod-gke-platform]
     end
 
-    DEV[Developer] -->|kubectl via IAP| GKE Cluster
+    GIT -->|webhook| ARGOCD
+    ARGOCD -->|sync| TA
+    ARGOCD -->|sync| TB
+    ARGOCD -->|sync| ISTIO
+    ARGOCD -->|sync| PROM
+    ARGOCD -->|sync| VAULT
+
+    DEV[Developer] -->|kubectl via IAP| IAP
+    IAP --> CLUSTER
     USERS[External Traffic] -->|HTTPS| ISTIO
     ISTIO -->|mTLS| APP
-    APP -->|/metrics| PROM
+    APP -->|metrics| PROM
+    VAULT --> SM
+    VAULT --> KMS
+    ESO --> SM
 ```
 
 ---
@@ -253,10 +259,11 @@ docker push gcr.io/YOUR_PROJECT_ID/go-metrics-api:1.0.0
 
 ---
 
-## About
+## Author
 
-Built by [Mohamed AbdelAziz](https://github.com/maziz00) — Senior DevOps Engineer (12 years, CKA/CKAD/AWS SA) based in the UAE, specializing in GCP, Kubernetes, and platform engineering for MENA enterprise.
+**Mohamed AbdelAziz** -- Senior DevOps Architect
+12 years Infra. Engineering, based in the UAE, specializing in GCP, Kubernetes, and platform engineering for MENA enterprise.
 
-Connect on [LinkedIn](https://www.linkedin.com/in/maziz00/) · [Medium](https://medium.com/@maziz00) · [Upwork](https://www.upwork.com/freelancers/maziz00)
+- [LinkedIn](https://www.linkedin.com/in/maziz00/) | [Medium](https://medium.com/@maziz00) | [Upwork](https://www.upwork.com/freelancers/maziz00?s=1110580753140797440) | [Consulting](https://calendly.com/maziz00/devops)
 
-If you run Kubernetes in production and want practical patterns from real MENA deployments, subscribe to [**The DevOps Dispatch**](https://medium.com/@maziz00).
+---
