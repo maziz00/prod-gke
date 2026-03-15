@@ -1,0 +1,83 @@
+# HashiCorp Vault Helm values for prod-gke-platform.
+# Deploys Vault in HA mode with Raft storage.
+# Auto-unseal via GCP KMS (no manual unseal keys — compliant with zero-knowledge ops).
+
+global:
+  enabled: true
+
+injector:
+  enabled: true  # Vault Agent Injector — mutates pods with vault.hashicorp.com annotations.
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+  tolerations:
+    - key: CriticalAddonsOnly
+      operator: Exists
+
+server:
+  image:
+    tag: "1.17.x"
+
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+  # 3-replica HA using Raft (built-in distributed consensus — no external etcd/Consul needed).
+  ha:
+    enabled: true
+    replicas: 3
+    raft:
+      enabled: true
+      setNodeId: true
+      config: |
+        ui = true
+        listener "tcp" {
+          tls_disable = 1
+          address     = "[::]:8200"
+          cluster_address = "[::]:8201"
+        }
+        storage "raft" {
+          path    = "/vault/data"
+          retry_join {
+            leader_api_addr = "http://vault-0.vault-internal:8200"
+          }
+          retry_join {
+            leader_api_addr = "http://vault-1.vault-internal:8200"
+          }
+          retry_join {
+            leader_api_addr = "http://vault-2.vault-internal:8200"
+          }
+        }
+        # GCP KMS auto-unseal: Vault unseal keys are wrapped by GCP KMS — no operator
+        # needs to store or enter unseal keys. The Vault pod's Workload Identity GSA
+        # must have roles/cloudkms.cryptoKeyEncrypterDecrypter.
+        seal "gcpckms" {
+          project     = "YOUR_PROJECT_ID"   # Replace after terraform apply
+          region      = "global"
+          key_ring    = "vault-keyring"
+          crypto_key  = "vault-unseal-key"
+        }
+        service_registration "kubernetes" {}
+
+  dataStorage:
+    enabled: true
+    size: 10Gi
+    storageClass: standard-rwo
+
+  # Workload Identity annotation: Vault pod → GCP SA (for KMS auto-unseal + Secret Manager).
+  serviceAccount:
+    annotations:
+      iam.gke.io/gcp-service-account: "VAULT_SA_EMAIL"  # Replace with terraform output vault_sa_email
+
+  tolerations:
+    - key: CriticalAddonsOnly
+      operator: Exists
+
+ui:
+  enabled: true
+  serviceType: ClusterIP  # Exposed via Istio VirtualService — not directly via LoadBalancer.

@@ -1,0 +1,15 @@
+apiVersion: v2
+name: go-metrics-api
+description: Production-grade Go API with Prometheus metrics, HPA, VPA, and Istio ingress.
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+kubeVersion: ">=1.28.0-0"
+keywords:
+  - go
+  - prometheus
+  - istio
+  - gke
+maintainers:
+  - name: Mohamed AbdelAziz
+    url: https://github.com/maziz00

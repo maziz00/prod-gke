@@ -1,0 +1,30 @@
+{{- if .Values.istio.enabled }}
+# Istio VirtualService: routes external traffic via the Istio ingress gateway to this service.
+# Replaces the Kubernetes Ingress resource for Istio-managed clusters.
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: {{ include "go-metrics-api.fullname" . }}
+  labels:
+    {{- include "go-metrics-api.labels" . | nindent 4 }}
+spec:
+  hosts:
+    - {{ .Values.istio.host | quote }}
+  gateways:
+    - {{ .Values.istio.gateway }}
+  http:
+    - match:
+        - uri:
+            prefix: /
+      route:
+        - destination:
+            host: {{ include "go-metrics-api.fullname" . }}
+            port:
+              number: {{ .Values.service.port }}
+      # Timeout and retry config for resilient traffic handling.
+      timeout: 30s
+      retries:
+        attempts: 3
+        perTryTimeout: 10s
+        retryOn: gateway-error,connect-failure,retriable-4xx
+{{- end }}

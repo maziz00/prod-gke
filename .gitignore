@@ -1,0 +1,20 @@
+# Terraform
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.backup
+*.tfplan
+crash.log
+override.tf
+override.tf.json
+
+# Variable files (may contain secrets — use *.tfvars.example for safe templates)
+*.tfvars
+!*.tfvars.example
+
+# Go binaries
+apps/go-metrics-api/go-metrics-api
+
+# OS
+.DS_Store
+Thumbs.db

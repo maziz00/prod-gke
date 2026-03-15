@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: team-alpha-limits
+  namespace: team-alpha
+spec:
+  limits:
+    - type: Container
+      # Default request applied to containers that don't specify one.
+      defaultRequest:
+        cpu: 100m
+        memory: 128Mi
+      # Default limit applied to containers that don't specify one.
+      default:
+        cpu: 500m
+        memory: 512Mi
+      # Hard ceiling — prevents runaway containers from starving neighbors.
+      max:
+        cpu: "4"
+        memory: 8Gi
+    - type: Pod
+      max:
+        cpu: "8"
+        memory: 16Gi

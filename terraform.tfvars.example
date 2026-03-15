@@ -1,2 +1,32 @@
+# Copy to terraform.tfvars and fill in your values.
+# terraform.tfvars is gitignored — never commit real values.
+
+# Required
 project_id = "your-gcp-project-id"
-region     = "us-central1"
+
+# Optional overrides (defaults shown)
+region       = "us-central1"
+environment  = "production"
+cluster_name = "prod-gke"
+
+# Lock down API server access in production (replace with your VPN/office CIDRs).
+# Empty list means no master_authorized_networks restriction (API accessible publicly — demo only).
+# master_authorized_networks = [
+#   { cidr_block = "203.0.113.0/24", display_name = "Office VPN" },
+#   { cidr_block = "198.51.100.0/24", display_name = "CI/CD Runners" },
+# ]
+
+# Node pool sizing (NAP handles burst; these are static baseline pools)
+system_pool_min = 1
+system_pool_max = 3
+spot_pool_min   = 0
+spot_pool_max   = 10
+
+# Only disable during planned teardown
+deletion_protection = true
+
+labels = {
+  managed-by = "terraform"
+  project    = "prod-gke-platform"
+  team       = "platform-engineering"
+}

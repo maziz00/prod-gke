@@ -1,0 +1,37 @@
+# The App-of-Apps: a single ArgoCD Application that watches gitops/apps/ and
+# creates all child Applications automatically.
+#
+# Apply manually ONCE after bootstrapping ArgoCD:
+#   kubectl apply -f gitops/argocd/apps/root-app.yaml -n argocd
+#
+# After this, everything else is self-managed by ArgoCD.
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root-app
+  namespace: argocd
+  # Deleting this Application will also delete all child Applications.
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    # Update repoURL to your fork of this repository.
+    repoURL: https://github.com/maziz00/prod-gke-platform.git
+    targetRevision: HEAD
+    path: gitops/apps
+    directory:
+      recurse: true
+      include: "*.yaml"
+      exclude: "_*.yaml"  # Skip template files.
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true     # Remove resources no longer in git.
+      selfHeal: true  # Re-apply if someone manually changes resources.
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

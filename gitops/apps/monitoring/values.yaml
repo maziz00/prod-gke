@@ -1,0 +1,88 @@
+# kube-prometheus-stack values for prod-gke-platform.
+# Deploys: Prometheus, Grafana, AlertManager, node-exporter, kube-state-metrics.
+
+prometheus:
+  prometheusSpec:
+    retention: 15d
+    retentionSize: "45GB"
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: standard-rwo
+          accessModes: [ReadWriteOnce]
+          resources:
+            requests:
+              storage: 50Gi
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+    # Discover ServiceMonitors across all namespaces (not just the helm release namespace).
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    # Scrape Istio metrics from the Istio control plane and data plane.
+    additionalScrapeConfigs:
+      - job_name: "istio-mesh"
+        kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names: [istio-system]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: istio-pilot;http-monitoring
+
+grafana:
+  enabled: true
+  persistence:
+    enabled: true
+    storageClassName: standard-rwo
+    size: 10Gi
+  # Grafana admin password is managed by External Secrets Operator.
+  # The ESO ExternalSecret creates a native Secret named "grafana-admin-secret".
+  admin:
+    existingSecret: grafana-admin-secret
+    userKey: admin-user
+    passwordKey: admin-password
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      searchNamespace: ALL  # Pick up dashboards from any namespace.
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: default
+          orgId: 1
+          folder: Platform
+          type: file
+          options:
+            path: /var/lib/grafana/dashboards/default
+
+alertmanager:
+  alertmanagerSpec:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+
+# System components scheduled on system nodes (tolerate the system taint).
+nodeExporter:
+  tolerations:
+    - operator: Exists
+
+kubeStateMetrics:
+  tolerations:
+    - key: CriticalAddonsOnly
+      operator: Exists

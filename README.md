@@ -1,111 +1,262 @@
-# Production-Grade GKE Cluster with Terraform
+# prod-gke-platform
 
-## 🚀 Overview
-This repository contains Terraform code to provision a **Production-Grade Google Kubernetes Engine (GKE)** cluster. It is designed to showcase advanced DevOps practices, including **Infrastructure as Code (IaC)**, **Security (DevSecOps)**, **Cost Optimization**, and **Scalability**.
+[![Terraform](https://img.shields.io/badge/Terraform-1.9+-7B42BC?style=flat&logo=terraform)](https://www.terraform.io/)
+[![GKE](https://img.shields.io/badge/GKE-1.30+-4285F4?style=flat&logo=google-cloud)](https://cloud.google.com/kubernetes-engine)
+[![Kubernetes](https://img.shields.io/badge/Kubernetes-1.30+-326CE5?style=flat&logo=kubernetes)](https://kubernetes.io/)
+[![Istio](https://img.shields.io/badge/Istio-1.22-466BB0?style=flat&logo=istio)](https://istio.io/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-This project is intended for Engineering Leaders and Hiring Managers to demonstrate expertise in building resilient, secure, and automated cloud infrastructure.
+> Production-grade, multi-tenant GKE platform — GitOps-driven, zero-trust networking, automated scaling, and full observability stack. Deployable in a single `terraform apply` + one bootstrap script.
 
-## 🏗 Architecture Highlights
-- **Private GKE Cluster**: Control plane and nodes are isolated from the public internet.
-- **VPC-Native Networking**: Utilizing Alias IPs for high performance and direct pod-to-pod communication.
-- **Security First**:
-  - **Workload Identity**: Securely map Kubernetes Service Accounts to Google Cloud IAM Service Accounts (no long-lived keys).
-  - **Shielded GKE Nodes**: Verifiable integrity of the node OS.
-  - **Private Nodes**: Nodes have no public IPs; outbound access via Cloud NAT.
-- **Cost Optimization**:
-  - **Spot Instances (Preemptible)**: Used for stateless workloads to reduce costs by up to 80%.
-  - **Cluster Autoscaler**: Automatically scales node pools based on demand.
-- **Observability**: Integrated with Google Cloud Operations (formerly Stackdriver) for logging and monitoring.
+---
 
-## 📂 Directory Structure
+## The Context
+
+In my 12 years managing production infrastructure across the UAE and Egypt, I've helped three organizations migrate to Kubernetes. Each one had the same experience: the first cluster gets spun up quickly, but then it becomes a snowflake. No one knows exactly what's running. Security reviews stall because nobody documented the network policies. Scaling events cause outages because pod resource requests were never set. Ops team can't hand off to developers because there's no GitOps discipline.
+
+This repo is how I build GKE clusters when the goal is *not* to be clever — it's to build something a team of 10 can operate safely six months after the initial deployment.
+
+Everything in this repo is managed through code and GitOps. If it's not in git, it doesn't exist in the cluster.
+
+---
+
+## Architecture
+
+```mermaid
+graph TB
+    subgraph "GCP Project"
+        subgraph "VPC — prod-gke-vpc"
+            subgraph "GKE Cluster — prod-gke (Regional, Private Nodes)"
+                subgraph "System Node Pool (On-Demand e2-standard-4)"
+                    ARGOCD[ArgoCD\nApp-of-Apps GitOps]
+                    ISTIO[Istiod\nmTLS Control Plane]
+                    PROM[Prometheus\nGrafana AlertManager]
+                    VAULT[HashiCorp Vault\nHA Raft + GCP KMS Seal]
+                    ESO[External Secrets\nOperator]
+                end
+                subgraph "Spot Node Pool (e2-standard-4, 0→10)"
+                    TA[team-alpha\nNamespace + Quotas + RBAC]
+                    TB[team-beta\nNamespace + Quotas + RBAC]
+                    APP[go-metrics-api\nGo + Prometheus + HPA + VPA]
+                end
+                subgraph "NAP Pools (Auto-Provisioned on Demand)"
+                    NAP[Node Auto Provisioning\nGKE-native Karpenter equivalent]
+                end
+            end
+            NAT[Cloud NAT\nPrivate Node Egress]
+            IAP[IAP Tunnel\nSecure SSH No Bastion]
+        end
+        subgraph "GCP Services"
+            WI[Workload Identity\nNo SA Keys]
+            SM[Secret Manager\nESO Backend]
+            KMS[Cloud KMS\nVault Auto-Unseal]
+            AR[Artifact Registry\nContainer Images]
+        end
+    end
+
+    subgraph "GitOps Flow"
+        GIT[GitHub — prod-gke-platform] -->|webhook| ARGOCD
+        ARGOCD -->|sync| TA
+        ARGOCD -->|sync| TB
+        ARGOCD -->|sync| ISTIO
+        ARGOCD -->|sync| PROM
+        ARGOCD -->|sync| VAULT
+    end
+
+    DEV[Developer] -->|kubectl via IAP| GKE Cluster
+    USERS[External Traffic] -->|HTTPS| ISTIO
+    ISTIO -->|mTLS| APP
+    APP -->|/metrics| PROM
 ```
-.
-├── main.tf             # Root module orchestration
-├── variables.tf        # Input variables definition
-├── outputs.tf          # Key outputs (Cluster Endpoint, etc.)
-├── versions.tf         # Provider & Terraform version constraints
-├── terraform.tfvars    # Configuration values (Git-ignored in real scenarios)
-└── modules/            # Reusable modules (optional, using direct resources for simplicity in this demo)
+
+---
+
+## What's Included
+
+| Layer | Component | Implementation |
+|---|---|---|
+| **IaC** | Terraform modular | `modules/vpc`, `modules/gke`, `modules/iam` |
+| **GitOps** | ArgoCD App-of-Apps | `gitops/argocd/` |
+| **Service Mesh** | Istio 1.22, strict mTLS | `gitops/apps/istio/` |
+| **Secrets** | Vault HA + ESO | `gitops/apps/vault/`, `gitops/apps/external-secrets/` |
+| **Multi-tenancy** | RBAC + ResourceQuota + NetworkPolicy | `gitops/apps/tenants/` |
+| **Autoscaling** | HPA + VPA + NAP | Cluster + Helm chart configs |
+| **Observability** | kube-prometheus-stack | `gitops/apps/monitoring/` |
+| **Sample App** | Go HTTP API with /metrics | `apps/go-metrics-api/` |
+
+---
+
+## Security Controls
+
+| Control | Implementation | Why It Matters |
+|---|---|---|
+| Private nodes | `enable_private_nodes = true` | Nodes have no external IPs — no direct internet attack surface |
+| Workload Identity | KSA → GSA binding | Zero service account keys — nothing to leak or rotate |
+| Dataplane V2 (Cilium) | `ADVANCED_DATAPATH` | eBPF NetworkPolicy enforcement — policies actually block traffic |
+| Shielded Nodes | Secure Boot + vTPM | Verifiable boot chain — detects kernel-level tampering |
+| Binary Authorization | `ENFORCE` mode | Blocks unattested container images from being scheduled |
+| mTLS everywhere | Istio `PeerAuthentication STRICT` | All pod-to-pod traffic is encrypted and mutually authenticated |
+| Pod Security Standards | `restricted` mode per namespace | No root containers, no privilege escalation, no host namespaces |
+| IAP-only SSH | Firewall allows `35.235.240.0/20` | No public bastion needed — GCP identity-proxied SSH |
+| VPC Flow Logs | Enabled on node subnet | Full network audit trail for security investigations |
+
+---
+
+## Directory Structure
+
+```
+prod-gke-platform/
+├── main.tf                          Root module — calls vpc, iam, gke modules
+├── variables.tf                     All input variables with validation
+├── outputs.tf                       Cluster endpoint, WI pool, kubeconfig command
+├── versions.tf                      Provider pins: google >= 6.0
+├── backend.tf                       GCS remote state (bucket placeholder — fill before init)
+├── terraform.tfvars.example         Safe template — copy to terraform.tfvars
+│
+├── modules/
+│   ├── vpc/                         VPC, subnet, Cloud NAT, firewall rules
+│   ├── gke/                         GKE cluster + system pool + spot pool + NAP
+│   └── iam/                         Node SA + Vault/ArgoCD/ESO GSAs + WI bindings
+│
+├── gitops/
+│   └── argocd/
+│       └── apps/
+│           └── root-app.yaml        Apply once — ArgoCD self-manages everything after this
+│
+├── gitops/apps/
+│   ├── istio/                       Istio base + istiod + gateway (sync-wave ordered)
+│   ├── vault/                       Vault HA + GCP KMS auto-unseal
+│   ├── monitoring/                  kube-prometheus-stack (Prometheus + Grafana)
+│   ├── tenants/team-alpha/          Namespace, ResourceQuota, LimitRange, NetworkPolicy, RBAC
+│   ├── tenants/team-beta/           Same for team-beta tenant
+│   └── sample-app/                  ArgoCD Application for go-metrics-api
+│
+├── apps/go-metrics-api/
+│   ├── main.go                      Go HTTP server with Prometheus metrics
+│   ├── Dockerfile                   Multi-stage: golang:1.22-alpine → distroless/static
+│   └── helm/go-metrics-api/         Production Helm chart with HPA, VPA, ServiceMonitor
+│
+└── scripts/
+    └── bootstrap-argocd.sh          Install ArgoCD + apply root App-of-Apps
 ```
 
-## 🛠 Prerequisites
-- [Terraform](https://www.terraform.io/downloads.html) >= 1.0.0
-- [Google Cloud SDK](https://cloud.google.com/sdk/docs/install) (gcloud) installed and authenticated.
-- A GCP Project with billing enabled.
-- Required APIs enabled: `compute.googleapis.com`, `container.googleapis.com`.
+---
 
-## 🚀 Deployment Guide
+## Prerequisites
 
-### 1. Initialize Terraform
+| Tool | Minimum Version | Purpose |
+|---|---|---|
+| Terraform | 1.9+ | Infrastructure provisioning |
+| gcloud CLI | Latest | GKE credentials, GCP auth |
+| kubectl | 1.28+ | Kubernetes management |
+| helm | 3.12+ | ArgoCD bootstrap |
+| Go | 1.22+ | Build sample app (optional) |
+
+**GCP APIs to enable:**
+```bash
+gcloud services enable \
+  container.googleapis.com \
+  compute.googleapis.com \
+  iam.googleapis.com \
+  artifactregistry.googleapis.com \
+  secretmanager.googleapis.com \
+  cloudkms.googleapis.com \
+  cloudresourcemanager.googleapis.com
+```
+
+---
+
+## Deployment
+
+### Step 1 — Configure
+
+```bash
+cp terraform.tfvars.example terraform.tfvars
+# Edit terraform.tfvars: set project_id and master_authorized_networks
+```
+
+### Step 2 — Create GCS bucket for remote state (optional but recommended)
+
+```bash
+PROJECT_ID=$(grep project_id terraform.tfvars | sed 's/.*"\(.*\)".*/\1/')
+gsutil mb -p $PROJECT_ID gs://${PROJECT_ID}-prod-gke-tfstate
+gcloud storage buckets update gs://${PROJECT_ID}-prod-gke-tfstate --versioning
+# Then uncomment the backend block in backend.tf and run terraform init
+```
+
+### Step 3 — Deploy infrastructure
+
 ```bash
 terraform init
-```
-
-### 2. Review the Plan
-```bash
 terraform plan
-```
-
-### 3. Apply Infrastructure
-```bash
 terraform apply
 ```
 
-### 4. Connect to Cluster
+### Step 4 — Configure kubectl
+
 ```bash
-gcloud container clusters get-credentials <CLUSTER_NAME> --region <REGION>
+$(terraform output -raw get_credentials_command)
 ```
 
-### 5. Bootstrap GitOps (ArgoCD)
-This project includes a helper script to install ArgoCD (HA mode) for GitOps workflows.
+### Step 5 — Bootstrap ArgoCD
+
 ```bash
-./scripts/bootstrap-gitops.sh <CLUSTER_NAME> <REGION>
+bash scripts/bootstrap-argocd.sh
 ```
 
-## 🧠 Advanced Usage
-
-### Workload Identity
-This cluster uses Workload Identity to securely access GCP resources from Kubernetes pods.
-
-1. **Create a Kubernetes Service Account (KSA)**:
-   ```bash
-   kubectl create serviceaccount my-app-sa --namespace default
-   ```
-2. **Bind KSA to a Google Service Account (GSA)**:
-   ```bash
-   gcloud iam service-accounts add-iam-policy-binding <GSA_EMAIL> \
-       --role roles/iam.workloadIdentityUser \
-       --member "serviceAccount:<PROJECT_ID>.svc.id.goog[default/my-app-sa]"
-   ```
-3. **Annotate the KSA**:
-   ```bash
-   kubectl annotate serviceaccount my-app-sa \
-       --namespace default \
-       iam.gke.io/gcp-service-account=<GSA_EMAIL>
-   ```
-
-### Network Policies
-Dataplane V2 is enabled, allowing you to use Kubernetes NetworkPolicies to control traffic between pods.
-
-Example `NetworkPolicy` to deny all ingress traffic by default:
-```yaml
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: default-deny-ingress
-spec:
-  podSelector: {}
-  policyTypes:
-  - Ingress
-```
-
-## 🔐 Security & Best Practices Implemented
-| Category | Implementation |
-|----------|----------------|
-| **Network** | Custom VPC, Private Subnet, Cloud NAT, Authorized Networks |
-| **IAM** | Least Privilege Service Accounts, Workload Identity |
-| **Compute** | Container-Optimized OS (COS), Shielded Nodes |
-| **Operations** | Auto-repair, Auto-upgrade, Cloud Logging/Monitoring |
+After this, all platform components (Istio, Vault, Prometheus, Grafana, tenant namespaces, sample app) are reconciled automatically by ArgoCD.
 
 ---
-*Built by [Your Name] - DevOps & Cloud Architect*
+
+## Node Pool Design
+
+| Pool | Type | Machine | Scale | Taint | Purpose |
+|---|---|---|---|---|---|
+| `system` | On-demand | e2-standard-4 | 1–3/zone | `CriticalAddonsOnly` | ArgoCD, Istio, Prometheus, Vault |
+| `spot-apps` | Spot (up to 91% cheaper) | e2-standard-4 | 0–10 | `gke-spot` | Tenant workloads |
+| NAP pools | On-demand or spot | Auto-selected | On-demand | None | Burst scheduling |
+
+---
+
+## Observability
+
+- **Prometheus**: scrapes all namespaces via ServiceMonitor CRDs, 15d retention
+- **Grafana**: auto-discovers dashboards via `grafana_dashboard` ConfigMap label
+- **AlertManager**: Slack integration (webhook from ESO — not hardcoded)
+- **Istio metrics**: Prometheus scrapes Istio control and data plane
+
+Access Grafana:
+```bash
+kubectl port-forward svc/kube-prometheus-stack-grafana 3000:80 -n monitoring
+```
+
+---
+
+## Sample App — go-metrics-api
+
+A production-quality Go HTTP service that demonstrates the full platform stack:
+
+- **Prometheus metrics**: `api_http_requests_total`, `api_http_request_duration_seconds`, `api_build_info`
+- **Graceful shutdown**: drains connections on SIGTERM (30s grace period)
+- **Pod Security**: runs as non-root (uid 65532), read-only filesystem, no privilege escalation
+- **HPA**: scales on CPU (70%) and memory (80%), slow scale-down (300s stabilization)
+- **VPA**: recommendation-only mode (no disruptive restarts in production)
+- **Istio**: mTLS enforced by mesh PeerAuthentication, traffic via VirtualService
+- **Topology spread**: replicas distributed across zones for availability
+
+Build and push:
+```bash
+cd apps/go-metrics-api
+docker build -t gcr.io/YOUR_PROJECT_ID/go-metrics-api:1.0.0 .
+docker push gcr.io/YOUR_PROJECT_ID/go-metrics-api:1.0.0
+```
+
+---
+
+## About
+
+Built by [Mohamed AbdelAziz](https://github.com/maziz00) — Senior DevOps Engineer (12 years, CKA/CKAD/AWS SA) based in the UAE, specializing in GCP, Kubernetes, and platform engineering for MENA enterprise.
+
+Connect on [LinkedIn](https://www.linkedin.com/in/maziz00/) · [Medium](https://medium.com/@maziz00) · [Upwork](https://www.upwork.com/freelancers/maziz00)
+
+If you run Kubernetes in production and want practical patterns from real MENA deployments, subscribe to [**The DevOps Dispatch**](https://medium.com/@maziz00).

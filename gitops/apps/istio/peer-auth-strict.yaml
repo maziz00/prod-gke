@@ -1,0 +1,14 @@
+# Enforce strict mTLS across the entire mesh.
+# PeerAuthentication in istio-system namespace applies as a cluster-wide mesh default.
+# All pod-to-pod traffic must use mutual TLS — plaintext is rejected.
+#
+# Applied by ArgoCD as part of the istio Application (recurse: true).
+
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: default-strict-mtls
+  namespace: istio-system
+spec:
+  mtls:
+    mode: STRICT

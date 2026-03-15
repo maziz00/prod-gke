@@ -1,0 +1,37 @@
+# RBAC for team-alpha.
+# Developers in the "team-alpha-developers" group can deploy and manage workloads
+# in the team-alpha namespace but cannot touch cluster-level resources.
+
+---
+# RoleBinding: team-alpha-developers group gets edit access within the namespace.
+# "edit" ClusterRole: can create/update/delete Deployments, Services, ConfigMaps,
+#   Secrets, HPA, etc. Cannot modify RBAC or namespace configuration.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: team-alpha-developers
+  namespace: team-alpha
+subjects:
+  - kind: Group
+    name: team-alpha-developers  # Matches the Google Workspace group or OIDC claim.
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: edit
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# RoleBinding: team-alpha-viewers group gets read-only access (for stakeholder dashboards).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: team-alpha-viewers
+  namespace: team-alpha
+subjects:
+  - kind: Group
+    name: team-alpha-viewers
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: view
+  apiGroup: rbac.authorization.k8s.io

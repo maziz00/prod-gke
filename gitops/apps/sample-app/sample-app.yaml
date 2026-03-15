@@ -1,0 +1,38 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: go-metrics-api
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"  # After platform, Istio, and monitoring are ready.
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/maziz00/prod-gke-platform.git
+    targetRevision: HEAD
+    path: apps/go-metrics-api/helm/go-metrics-api
+    helm:
+      releaseName: go-metrics-api
+      values: |
+        image:
+          repository: gcr.io/YOUR_PROJECT_ID/go-metrics-api
+          tag: "1.0.0"
+        serviceMonitor:
+          enabled: true
+          namespace: monitoring
+        istio:
+          enabled: true
+          host: "api.YOUR_DOMAIN.com"
+          gateway: "istio-system/platform-gateway"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: team-alpha
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false  # Namespace is managed by the tenants Application.
+      - ServerSideApply=true

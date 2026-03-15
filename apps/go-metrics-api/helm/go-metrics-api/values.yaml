@@ -1,0 +1,115 @@
+replicaCount: 2
+
+image:
+  repository: gcr.io/YOUR_PROJECT_ID/go-metrics-api
+  tag: "1.0.0"
+  pullPolicy: IfNotPresent
+
+serviceAccount:
+  create: true
+  name: ""
+  # Workload Identity annotation — maps KSA to GCP SA for GCP API access.
+  # Set to the value of `terraform output eso_sa_email` if the app needs GCP access.
+  annotations: {}
+  #   iam.gke.io/gcp-service-account: go-metrics-api@YOUR_PROJECT_ID.iam.gserviceaccount.com
+
+service:
+  type: ClusterIP
+  port: 8080
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+  # Scale down slowly — avoid yo-yo scaling under bursty traffic.
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 60
+
+vpa:
+  enabled: true
+  updateMode: "Off"  # Recommendation-only; no disruptive restarts.
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+serviceMonitor:
+  enabled: true
+  namespace: monitoring
+  interval: 30s
+  path: /metrics
+
+istio:
+  enabled: true
+  # Gateway host — set to the Istio ingress gateway external IP after bootstrap.
+  host: "go-metrics-api.example.com"
+  gateway: "istio-system/platform-gateway"
+
+# Tolerate spot nodes — application is stateless and restarts quickly.
+tolerations:
+  - key: "cloud.google.com/gke-spot"
+    operator: "Equal"
+    value: "true"
+    effect: "NoSchedule"
+
+# Spread replicas across zones for availability.
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: DoNotSchedule
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: go-metrics-api
+
+# Pod-level security context — enforces restricted pod security standard.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  fsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: 8080
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /readyz
+    port: 8080
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  failureThreshold: 3
+
+startupProbe:
+  httpGet:
+    path: /healthz
+    port: 8080
+  failureThreshold: 30
+  periodSeconds: 2

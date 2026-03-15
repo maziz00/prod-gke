@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: team-alpha-quota
+  namespace: team-alpha
+spec:
+  hard:
+    # Compute
+    requests.cpu: "4"
+    requests.memory: 8Gi
+    limits.cpu: "8"
+    limits.memory: 16Gi
+    # Object counts
+    pods: "20"
+    services: "10"
+    persistentvolumeclaims: "5"
+    # Prevent unbounded secret creation (security hygiene).
+    secrets: "20"
+    configmaps: "20"
