@@ -259,7 +259,7 @@ docker push gcr.io/YOUR_PROJECT_ID/go-metrics-api:1.0.0
 
 ---
 
-## Author
+## About Me
 
 **Mohamed AbdelAziz** -- Senior DevOps Architect
 12 years Infra. Engineering, based in the UAE, specializing in GCP, Kubernetes, and platform engineering for MENA enterprise.
