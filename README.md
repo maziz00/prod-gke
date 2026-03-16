@@ -143,7 +143,7 @@ prod-gke-platform/
 │   └── helm/go-metrics-api/         Production Helm chart with HPA, VPA, ServiceMonitor
 │
 └── scripts/
-    ├── setup-tf-backend.sh          Enable APIs + create GCS bucket + init backend
+    ├── bootstrap-bucket.sh          Enable APIs + create GCS bucket + init backend
     └── bootstrap-argocd.sh          Install ArgoCD + apply root App-of-Apps
 ```
 
@@ -173,7 +173,7 @@ cp terraform.tfvars.example terraform.tfvars
 ### Step 2 — Enable APIs, create state bucket, init backend
 
 ```bash
-bash scripts/setup-tf-backend.sh
+bash scripts/bootstrap-bucket.sh
 ```
 
 This script does everything in one shot:
