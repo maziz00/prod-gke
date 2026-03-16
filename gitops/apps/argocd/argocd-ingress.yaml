@@ -1,0 +1,61 @@
+# Secure external access to ArgoCD UI via Istio ingress gateway.
+#
+# Architecture:
+#   Browser → Istio IngressGateway (port 443, TLS PASSTHROUGH)
+#             → argocd-server:443 (ArgoCD owns its TLS cert)
+#
+# TLS PASSTHROUGH means the Istio gateway does NOT terminate TLS.
+# ArgoCD's self-signed cert (or a cert-manager cert) handles encryption end-to-end.
+# The client sees ArgoCD's cert, not Istio's.
+#
+# Setup:
+#   1. Get the ingress gateway IP:
+#        kubectl get svc istio-ingressgateway -n istio-system \
+#          -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+#   2. Point your DNS A record: argocd.example.com → <INGRESS_IP>
+#   3. Update the host value below to match.
+#   4. ArgoCD self-manages this file via the App-of-Apps pattern.
+
+---
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: argocd-gateway
+  namespace: argocd
+spec:
+  selector:
+    # Targets the Istio ingress gateway deployed in istio-system.
+    istio: ingressgateway
+  servers:
+    - port:
+        number: 443
+        name: https-argocd
+        protocol: HTTPS
+      tls:
+        # PASSTHROUGH — Istio forwards encrypted bytes as-is; ArgoCD terminates TLS.
+        # No certificate required on the gateway side.
+        mode: PASSTHROUGH
+      hosts:
+        - "argocd.example.com"  # Replace with your real hostname.
+
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: argocd-server
+  namespace: argocd
+spec:
+  hosts:
+    - "argocd.example.com"  # Must match the Gateway host above.
+  gateways:
+    - argocd-gateway
+  tls:
+    - match:
+        - port: 443
+          sniHosts:
+            - "argocd.example.com"
+      route:
+        - destination:
+            host: argocd-server
+            port:
+              number: 443

@@ -36,8 +36,6 @@ helm upgrade --install argocd argo/argo-cd \
   --create-namespace \
   --version "${ARGOCD_VERSION}" \
   --set server.service.type=ClusterIP \
-  --set "server.extraArgs={--insecure}" \
-  --set configs.params."server\.insecure"=true \
   --set "controller.tolerations[0].key=CriticalAddonsOnly" \
   --set "controller.tolerations[0].operator=Exists" \
   --set "server.tolerations[0].key=CriticalAddonsOnly" \
@@ -58,9 +56,13 @@ ARGOCD_PASSWORD=$(kubectl -n "${ARGOCD_NAMESPACE}" get secret argocd-initial-adm
 log "================================================================"
 log "ArgoCD is ready!"
 log ""
-log "Access ArgoCD UI:"
+log "Access ArgoCD UI (port-forward):"
 log "  kubectl port-forward svc/argocd-server -n ${ARGOCD_NAMESPACE} 8080:443"
-log "  Open: https://localhost:8080"
+log "  Open: https://localhost:8080  (accept the self-signed cert warning)"
+log ""
+log "Access ArgoCD UI (production via Istio):"
+log "  Update gitops/apps/argocd/argocd-ingress.yaml with your real hostname."
+log "  Point DNS to: kubectl get svc istio-ingressgateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}'"
 log "  Username: admin"
 log "  Password: ${ARGOCD_PASSWORD}"
 log ""
