@@ -18,7 +18,7 @@ spec:
   project: default
   source:
     # Update repoURL to your fork of this repository.
-    repoURL: https://github.com/maziz00/prod-gke-platform.git
+    repoURL: https://github.com/maziz00/prod-gke.git
     targetRevision: HEAD
     path: gitops/apps
     directory:

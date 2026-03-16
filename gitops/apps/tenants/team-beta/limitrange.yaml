@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: team-beta-limits
+  namespace: team-beta
+spec:
+  limits:
+    - type: Container
+      # Default request applied to containers that don't specify one.
+      defaultRequest:
+        cpu: 250m
+        memory: 512Mi
+      # Default limit applied to containers that don't specify one.
+      # Higher defaults for data workloads (batch jobs, stream processors).
+      default:
+        cpu: "1"
+        memory: 2Gi
+      # Hard ceiling — prevents runaway containers from starving neighbors.
+      max:
+        cpu: "8"
+        memory: 16Gi
+    - type: Pod
+      max:
+        cpu: "16"
+        memory: 32Gi

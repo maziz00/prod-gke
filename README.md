@@ -1,4 +1,4 @@
-# prod-gke-platform
+# prod-gke
 
 [![Terraform](https://img.shields.io/badge/Terraform-1.9+-7B42BC?style=flat&logo=terraform)](https://www.terraform.io/)
 [![GKE](https://img.shields.io/badge/GKE-1.30+-4285F4?style=flat&logo=google-cloud)](https://cloud.google.com/kubernetes-engine)
@@ -55,7 +55,7 @@ graph TB
     end
 
     subgraph GITOPS["GitOps Flow"]
-        GIT[GitHub - prod-gke-platform]
+        GIT[GitHub - prod-gke]
     end
 
     GIT -->|webhook| ARGOCD
@@ -111,7 +111,7 @@ graph TB
 ## Directory Structure
 
 ```
-prod-gke-platform/
+prod-gke/
 ├── main.tf                          Root module — calls vpc, iam, gke modules
 ├── variables.tf                     All input variables with validation
 ├── outputs.tf                       Cluster endpoint, WI pool, kubeconfig command

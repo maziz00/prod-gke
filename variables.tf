@@ -216,6 +216,6 @@ variable "labels" {
   type        = map(string)
   default = {
     managed-by = "terraform"
-    project    = "prod-gke-platform"
+    project    = "prod-gke"
   }
 }

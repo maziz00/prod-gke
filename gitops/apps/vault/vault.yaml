@@ -23,7 +23,7 @@ spec:
       targetRevision: "0.28.x"
       helm:
         releaseName: vault
-    - repoURL: https://github.com/maziz00/prod-gke-platform.git
+    - repoURL: https://github.com/maziz00/prod-gke.git
       targetRevision: HEAD
       ref: values
   destination:

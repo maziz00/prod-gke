@@ -1,4 +1,4 @@
-# prod-gke-platform — Root Module
+# prod-gke — Root Module
 #
 # Composes three independent modules into a complete production GKE platform:
 #   - vpc:  Private networking, Cloud NAT, VPC Flow Logs, firewall rules

@@ -1,7 +1,7 @@
 #!/bin/bash
 # setup-tf-backend.sh
 #
-# One-shot bootstrap for prod-gke-platform:
+# One-shot bootstrap for prod-gke:
 #   1. Enable required GCP APIs
 #   2. Create GCS bucket for Terraform remote state (idempotent)
 #   3. Write backend.tf with the real bucket name

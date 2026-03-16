@@ -1,4 +1,4 @@
-# HashiCorp Vault Helm values for prod-gke-platform.
+# HashiCorp Vault Helm values for prod-gke.
 # Deploys Vault in HA mode with Raft storage.
 # Auto-unseal via GCP KMS (no manual unseal keys — compliant with zero-knowledge ops).
 

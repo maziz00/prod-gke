@@ -1,4 +1,4 @@
-# kube-prometheus-stack values for prod-gke-platform.
+# kube-prometheus-stack values for prod-gke.
 # Deploys: Prometheus, Grafana, AlertManager, node-exporter, kube-state-metrics.
 
 prometheus:

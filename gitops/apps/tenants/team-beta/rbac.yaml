@@ -1,0 +1,54 @@
+# RBAC for team-beta.
+# Developers in the "team-beta-developers" group can deploy and manage workloads
+# in the team-beta namespace but cannot touch cluster-level resources.
+
+---
+# RoleBinding: team-beta-developers group gets edit access within the namespace.
+# "edit" ClusterRole: can create/update/delete Deployments, Services, ConfigMaps,
+#   Secrets, HPA, etc. Cannot modify RBAC or namespace configuration.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: team-beta-developers
+  namespace: team-beta
+subjects:
+  - kind: Group
+    name: team-beta-developers  # Matches the Google Workspace group or OIDC claim.
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: edit
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# RoleBinding: team-beta-viewers group gets read-only access (for stakeholder dashboards).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: team-beta-viewers
+  namespace: team-beta
+subjects:
+  - kind: Group
+    name: team-beta-viewers
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: view
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# RoleBinding: team-beta-data-admin gets admin access to PersistentVolumeClaims
+# and StatefulSets for data platform operators.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: team-beta-data-admin
+  namespace: team-beta
+subjects:
+  - kind: Group
+    name: team-beta-data-admin
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: admin
+  apiGroup: rbac.authorization.k8s.io
