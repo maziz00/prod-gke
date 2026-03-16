@@ -36,6 +36,7 @@ helm upgrade --install argocd argo/argo-cd \
   --create-namespace \
   --version "${ARGOCD_VERSION}" \
   --set server.service.type=ClusterIP \
+  --set redis.networkPolicy.create=false \
   --set "controller.tolerations[0].key=CriticalAddonsOnly" \
   --set "controller.tolerations[0].operator=Exists" \
   --set "server.tolerations[0].key=CriticalAddonsOnly" \
