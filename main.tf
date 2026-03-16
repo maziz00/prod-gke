@@ -43,6 +43,13 @@ module "vpc" {
   labels              = var.labels
 }
 
+# Workload Identity bindings are here — NOT in the iam module — because the WI pool
+# (PROJECT.svc.id.goog) only exists after the GKE cluster is created. Using depends_on
+# here ensures these resources are applied after module.gke completes successfully.
+locals {
+  wi_pool = "${var.project_id}.svc.id.goog"
+}
+
 module "gke" {
   source = "./modules/gke"
 
@@ -81,4 +88,28 @@ module "gke" {
 
   deletion_protection = var.deletion_protection
   labels              = var.labels
+}
+
+# ── Workload Identity bindings ────────────────────────────────────────────────
+# These must run AFTER the GKE cluster exists because the WI pool is created by GKE.
+
+resource "google_service_account_iam_member" "vault_wi" {
+  service_account_id = module.iam.vault_sa_id
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "serviceAccount:${local.wi_pool}[${var.vault_ksa_namespace}/${var.vault_ksa_name}]"
+  depends_on         = [module.gke]
+}
+
+resource "google_service_account_iam_member" "argocd_wi" {
+  service_account_id = module.iam.argocd_sa_id
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "serviceAccount:${local.wi_pool}[${var.argocd_ksa_namespace}/${var.argocd_ksa_name}]"
+  depends_on         = [module.gke]
+}
+
+resource "google_service_account_iam_member" "eso_wi" {
+  service_account_id = module.iam.eso_sa_id
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "serviceAccount:${local.wi_pool}[${var.eso_ksa_namespace}/${var.eso_ksa_name}]"
+  depends_on         = [module.gke]
 }

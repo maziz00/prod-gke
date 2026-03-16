@@ -171,6 +171,46 @@ variable "deletion_protection" {
   default     = true
 }
 
+# --- Workload Identity KSA mappings ---
+# These match the Kubernetes ServiceAccount names created by each Helm chart.
+# Only change if you use non-default release names.
+
+variable "vault_ksa_namespace" {
+  description = "Namespace of the Vault Kubernetes ServiceAccount."
+  type        = string
+  default     = "vault"
+}
+
+variable "vault_ksa_name" {
+  description = "Name of the Vault Kubernetes ServiceAccount."
+  type        = string
+  default     = "vault"
+}
+
+variable "argocd_ksa_namespace" {
+  description = "Namespace of the ArgoCD application controller Kubernetes ServiceAccount."
+  type        = string
+  default     = "argocd"
+}
+
+variable "argocd_ksa_name" {
+  description = "Name of the ArgoCD application controller Kubernetes ServiceAccount."
+  type        = string
+  default     = "argocd-application-controller"
+}
+
+variable "eso_ksa_namespace" {
+  description = "Namespace of the External Secrets Operator Kubernetes ServiceAccount."
+  type        = string
+  default     = "external-secrets"
+}
+
+variable "eso_ksa_name" {
+  description = "Name of the External Secrets Operator Kubernetes ServiceAccount."
+  type        = string
+  default     = "external-secrets"
+}
+
 variable "labels" {
   description = "Labels applied to all resources. Keys and values must be lowercase alphanumeric or hyphens."
   type        = map(string)

@@ -47,12 +47,10 @@ resource "google_project_iam_member" "vault_kms_decrypter" {
   member  = "serviceAccount:${google_service_account.vault.email}"
 }
 
-# Bind: Vault KSA in the cluster → Vault GCP SA (Workload Identity)
-resource "google_service_account_iam_member" "vault_wi" {
-  service_account_id = google_service_account.vault.name
-  role               = "roles/iam.workloadIdentityUser"
-  member             = "serviceAccount:${var.project_id}.svc.id.goog[${var.vault_ksa_namespace}/${var.vault_ksa_name}]"
-}
+# NOTE: Workload Identity bindings (vault_wi, argocd_wi, eso_wi) are intentionally
+# defined in the ROOT main.tf — not here. The WI pool (PROJECT.svc.id.goog) is only
+# created after the GKE cluster exists, so those resources need depends_on = [module.gke].
+# Defining them here would cause a race condition with parallel module execution.
 
 # --- ArgoCD Service Account ---
 
@@ -63,11 +61,6 @@ resource "google_service_account" "argocd" {
   project      = var.project_id
 }
 
-resource "google_service_account_iam_member" "argocd_wi" {
-  service_account_id = google_service_account.argocd.name
-  role               = "roles/iam.workloadIdentityUser"
-  member             = "serviceAccount:${var.project_id}.svc.id.goog[${var.argocd_ksa_namespace}/${var.argocd_ksa_name}]"
-}
 
 # --- External Secrets Operator Service Account ---
 # ESO syncs secrets from Vault/Secret Manager into Kubernetes native Secrets.
@@ -85,8 +78,3 @@ resource "google_project_iam_member" "eso_secret_manager" {
   member  = "serviceAccount:${google_service_account.eso.email}"
 }
 
-resource "google_service_account_iam_member" "eso_wi" {
-  service_account_id = google_service_account.eso.name
-  role               = "roles/iam.workloadIdentityUser"
-  member             = "serviceAccount:${var.project_id}.svc.id.goog[${var.eso_ksa_namespace}/${var.eso_ksa_name}]"
-}

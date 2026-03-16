@@ -201,12 +201,14 @@ resource "google_container_cluster" "primary" {
     }
   }
 
-  # Maintenance window: Friday 22:00 UTC = Saturday 02:00 GST (off-peak for Gulf business hours).
+  # Maintenance window: Friday + Saturday nights UTC (maps to early morning GST both days).
+  # GKE requires >=48h total maintenance availability in any 32-day window.
+  # 2 nights × 8h = 16h/week = ~64h/month — well above the minimum.
   maintenance_policy {
     recurring_window {
       start_time = "2024-01-05T22:00:00Z"
       end_time   = "2024-01-06T06:00:00Z"
-      recurrence = "FREQ=WEEKLY;BYDAY=FR"
+      recurrence = "FREQ=WEEKLY;BYDAY=FR,SA"
     }
   }
 

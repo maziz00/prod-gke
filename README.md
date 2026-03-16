@@ -143,6 +143,7 @@ prod-gke-platform/
 │   └── helm/go-metrics-api/         Production Helm chart with HPA, VPA, ServiceMonitor
 │
 └── scripts/
+    ├── setup-tf-backend.sh          Enable APIs + create GCS bucket + init backend
     └── bootstrap-argocd.sh          Install ArgoCD + apply root App-of-Apps
 ```
 
@@ -158,18 +159,6 @@ prod-gke-platform/
 | helm | 3.12+ | ArgoCD bootstrap |
 | Go | 1.22+ | Build sample app (optional) |
 
-**GCP APIs to enable:**
-```bash
-gcloud services enable \
-  container.googleapis.com \
-  compute.googleapis.com \
-  iam.googleapis.com \
-  artifactregistry.googleapis.com \
-  secretmanager.googleapis.com \
-  cloudkms.googleapis.com \
-  cloudresourcemanager.googleapis.com
-```
-
 ---
 
 ## Deployment
@@ -178,22 +167,24 @@ gcloud services enable \
 
 ```bash
 cp terraform.tfvars.example terraform.tfvars
-# Edit terraform.tfvars: set project_id and master_authorized_networks
+# Set project_id and optionally master_authorized_networks
 ```
 
-### Step 2 — Create GCS bucket for remote state (optional but recommended)
+### Step 2 — Enable APIs, create state bucket, init backend
 
 ```bash
-PROJECT_ID=$(grep project_id terraform.tfvars | sed 's/.*"\(.*\)".*/\1/')
-gsutil mb -p $PROJECT_ID gs://${PROJECT_ID}-prod-gke-tfstate
-gcloud storage buckets update gs://${PROJECT_ID}-prod-gke-tfstate --versioning
-# Then uncomment the backend block in backend.tf and run terraform init
+bash scripts/setup-tf-backend.sh
 ```
+
+This script does everything in one shot:
+- Enables all required GCP APIs (GKE, IAM, Workload Identity, Secret Manager, Cloud KMS, Binary Authorization, Cloud DNS, and more)
+- Creates the GCS bucket `<project-id>-prod-gke-tfstate` with versioning and public-access prevention
+- Writes `backend.tf` with the real bucket name and prefix `prod-gke/state`
+- Runs `terraform init -reconfigure` to activate the remote backend
 
 ### Step 3 — Deploy infrastructure
 
 ```bash
-terraform init
 terraform plan
 terraform apply
 ```
