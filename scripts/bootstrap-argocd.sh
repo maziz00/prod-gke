@@ -45,6 +45,16 @@ helm repo update
 
 log "--- Phase 1: Istio ${ISTIO_VERSION} ---"
 
+# If Istio CRDs exist from a previous failed install they won't have Helm ownership
+# labels, causing "cannot be imported into the current release" errors. Adopt them.
+log "Adopting any existing Istio CRDs into Helm management..."
+kubectl get crd | grep 'istio.io' | awk '{print $1}' | while read -r crd; do
+  kubectl label      crd "${crd}" app.kubernetes.io/managed-by=Helm --overwrite
+  kubectl annotate   crd "${crd}" \
+    meta.helm.sh/release-name=istio-base \
+    meta.helm.sh/release-namespace="${ISTIO_NAMESPACE}" --overwrite
+done
+
 log "Installing istio-base (CRDs)..."
 helm upgrade --install istio-base istio/base \
   --namespace "${ISTIO_NAMESPACE}" \
@@ -61,6 +71,17 @@ helm upgrade --install istiod istio/istiod \
   --set meshConfig.accessLogFile=/dev/stdout \
   --set meshConfig.enableAutoMtls=true \
   --wait --timeout 5m
+
+log "Adopting any existing gateway resources into Helm management..."
+for resource_type in serviceaccount deployment service horizontalpodautoscaler role rolebinding; do
+  if kubectl get "${resource_type}" istio-ingressgateway -n "${ISTIO_NAMESPACE}" &>/dev/null 2>&1; then
+    kubectl label    "${resource_type}" istio-ingressgateway -n "${ISTIO_NAMESPACE}" \
+      app.kubernetes.io/managed-by=Helm --overwrite
+    kubectl annotate "${resource_type}" istio-ingressgateway -n "${ISTIO_NAMESPACE}" \
+      meta.helm.sh/release-name=istio-ingressgateway \
+      meta.helm.sh/release-namespace="${ISTIO_NAMESPACE}" --overwrite
+  fi
+done
 
 log "Installing istio-ingressgateway..."
 helm upgrade --install istio-ingressgateway istio/gateway \
