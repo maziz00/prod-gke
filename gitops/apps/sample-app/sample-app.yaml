@@ -16,8 +16,9 @@ spec:
     helm:
       releaseName: go-metrics-api
       values: |
+        # image.repository is resolved at render time via Helm lookup from the
+        # cluster-config Secret (created by bootstrap-argocd.sh). No project_id in git.
         image:
-          repository: gcr.io/YOUR_PROJECT_ID/go-metrics-api
           tag: "1.0.0"
         serviceMonitor:
           enabled: true

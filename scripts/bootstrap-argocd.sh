@@ -93,9 +93,37 @@ log "Istio pods:"
 kubectl get pods -n "${ISTIO_NAMESPACE}"
 
 # ============================================================
-# PHASE 2 — ArgoCD
+# PHASE 2 — Cluster config secret
+# Created before ArgoCD so the app can resolve project_id at first sync.
+# Never stored in git — this is the only place it lives.
 # ============================================================
-log "--- Phase 2: ArgoCD ${ARGOCD_VERSION} ---"
+log "--- Phase 2: Cluster config secret ---"
+
+# Resolve project_id from terraform output, falling back to gcloud.
+PROJECT_ID=$(cd "${ROOT_DIR}" && terraform output -raw project_id 2>/dev/null) \
+  || PROJECT_ID=$(gcloud config get-value project 2>/dev/null)
+
+if [[ -z "${PROJECT_ID}" ]]; then
+  echo "Error: could not determine project_id. Run 'terraform apply' first or set gcloud project." >&2
+  exit 1
+fi
+
+log "Project ID: ${PROJECT_ID}"
+
+# Ensure tenant namespace exists so the Secret can be created before ArgoCD syncs it.
+kubectl create namespace team-alpha --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl create secret generic cluster-config \
+  --from-literal=project_id="${PROJECT_ID}" \
+  --namespace team-alpha \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+log "cluster-config Secret created in team-alpha."
+
+# ============================================================
+# PHASE 3 — ArgoCD
+# ============================================================
+log "--- Phase 3: ArgoCD ${ARGOCD_VERSION} ---"
 
 helm upgrade --install argocd argo/argo-cd \
   --namespace "${ARGOCD_NAMESPACE}" \
@@ -113,10 +141,10 @@ log "ArgoCD pods:"
 kubectl get pods -n "${ARGOCD_NAMESPACE}"
 
 # ============================================================
-# PHASE 3 — App-of-Apps
+# PHASE 4 — App-of-Apps
 # ArgoCD takes over all further management from this point.
 # ============================================================
-log "--- Phase 3: Applying App-of-Apps root Application ---"
+log "--- Phase 4: Applying App-of-Apps root Application ---"
 kubectl apply -f "${ROOT_DIR}/gitops/argocd/apps/root-app.yaml"
 
 log "Retrieving initial admin password..."

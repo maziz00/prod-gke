@@ -3,6 +3,11 @@ output "cluster_name" {
   value       = module.gke.cluster_name
 }
 
+output "gcp_project_id" {
+  description = "GCP Project ID"
+  value       = var.project_id
+}
+
 output "cluster_location" {
   description = "GKE cluster region."
   value       = module.gke.cluster_location

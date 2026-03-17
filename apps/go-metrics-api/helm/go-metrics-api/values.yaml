@@ -1,7 +1,10 @@
 replicaCount: 2
 
 image:
-  repository: gcr.io/YOUR_PROJECT_ID/go-metrics-api
+  # repository is resolved at render time via Helm lookup from the cluster-config
+  # Secret (created by bootstrap-argocd.sh, never stored in git).
+  # Fallback value is used when rendering locally without a live cluster.
+  repository: gcr.io/PROJECT_ID_FROM_SECRET/go-metrics-api
   tag: "1.0.0"
   pullPolicy: IfNotPresent
 

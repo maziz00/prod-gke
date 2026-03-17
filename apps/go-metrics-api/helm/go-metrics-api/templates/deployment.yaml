@@ -43,8 +43,20 @@ spec:
       terminationGracePeriodSeconds: 30
 
       containers:
+        {{- /*
+        Resolve project_id at render time from the cluster-config Secret.
+        The Secret is created by bootstrap-argocd.sh and is never stored in git.
+        Falls back to .Values.image.repository if the Secret doesn't exist yet
+        (e.g., dry-run or local helm template invocations).
+        */}}
+        {{- $secret := lookup "v1" "Secret" .Release.Namespace "cluster-config" }}
+        {{- $projectId := "" }}
+        {{- if and $secret $secret.data }}
+        {{-   $projectId = index $secret.data "project_id" | b64dec }}
+        {{- end }}
+        {{- $imageRepo := ternary (printf "gcr.io/%s/go-metrics-api" $projectId) .Values.image.repository (ne $projectId "") }}
         - name: {{ .Chart.Name }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: "{{ $imageRepo }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
 
           ports:
@@ -66,6 +78,13 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
+            # GCP project ID — read from cluster-config Secret, not hardcoded.
+            - name: GCP_PROJECT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: cluster-config
+                  key: project_id
+                  optional: true
 
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
