@@ -17,11 +17,14 @@
 #   4. ArgoCD self-manages this file via the App-of-Apps pattern.
 
 ---
-apiVersion: networking.istio.io/v1beta1
+apiVersion: networking.istio.io/v1
 kind: Gateway
 metadata:
   name: argocd-gateway
   namespace: argocd
+  annotations:
+    # Wave 3: apply after istio-base (0) → istiod (1) → istio-gateway (2) are Healthy.
+    argocd.argoproj.io/sync-wave: "3"
 spec:
   selector:
     # Targets the Istio ingress gateway deployed in istio-system.
@@ -39,7 +42,7 @@ spec:
         - "argocd.example.com"  # Replace with your real hostname.
 
 ---
-apiVersion: networking.istio.io/v1beta1
+apiVersion: networking.istio.io/v1
 kind: VirtualService
 metadata:
   name: argocd-server

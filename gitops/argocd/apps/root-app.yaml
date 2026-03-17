@@ -35,3 +35,7 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+      # Don't abort the sync when a CRD-dependent resource is applied before its CRD
+      # exists. Necessary because Istio CRDs (wave 0-2) install concurrently with
+      # wave-3 resources on the very first sync. ArgoCD retries until CRDs appear.
+      - SkipDryRunOnMissingResource=true

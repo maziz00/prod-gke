@@ -9,6 +9,10 @@ kind: PeerAuthentication
 metadata:
   name: default-strict-mtls
   namespace: istio-system
+  annotations:
+    # Wave 3: apply only after istio-base (0), istiod (1), istio-gateway (2) are Healthy.
+    # root-app waits for all wave-N resources to be Healthy before starting wave N+1.
+    argocd.argoproj.io/sync-wave: "3"
 spec:
   mtls:
     mode: STRICT
