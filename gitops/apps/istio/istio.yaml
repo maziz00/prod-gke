@@ -18,7 +18,7 @@ spec:
   source:
     repoURL: https://istio-release.storage.googleapis.com/charts
     chart: base
-    targetRevision: "1.22.x"
+    targetRevision: "1.28.5"
     helm:
       releaseName: istio-base
   destination:
@@ -47,7 +47,7 @@ spec:
   source:
     repoURL: https://istio-release.storage.googleapis.com/charts
     chart: istiod
-    targetRevision: "1.22.x"
+    targetRevision: "1.28.5"
     helm:
       releaseName: istiod
       values: |
@@ -90,23 +90,15 @@ spec:
   source:
     repoURL: https://istio-release.storage.googleapis.com/charts
     chart: gateway
-    targetRevision: "1.22.x"
+    targetRevision: "1.28.5"
     helm:
       releaseName: istio-ingressgateway
       values: |
-        service:
-          type: LoadBalancer
-          annotations:
-            cloud.google.com/load-balancer-type: "External"
-        autoscaling:
-          enabled: true
-          minReplicas: 2
-          maxReplicas: 5
-          targetCPUUtilizationPercentage: 80
-        resources:
-          requests:
-            cpu: 100m
-            memory: 128Mi
+        # Gateway chart 1.25+ enforces a strict schema — only configure via
+        # the chart's own values.yaml keys. Service type defaults to LoadBalancer.
+        podAnnotations:
+          prometheus.io/scrape: "true"
+          prometheus.io/port: "15020"
   destination:
     server: https://kubernetes.default.svc
     namespace: istio-system

@@ -20,7 +20,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 ARGOCD_VERSION="${ARGOCD_VERSION:-7.5.x}"
-ISTIO_VERSION="${ISTIO_VERSION:-1.22.3}"
+ISTIO_VERSION="${ISTIO_VERSION:-1.28.5}"
 ARGOCD_NAMESPACE="argocd"
 ISTIO_NAMESPACE="istio-system"
 
@@ -66,10 +66,6 @@ log "Installing istio-ingressgateway..."
 helm upgrade --install istio-ingressgateway istio/gateway \
   --namespace "${ISTIO_NAMESPACE}" \
   --version "${ISTIO_VERSION}" \
-  --set service.type=LoadBalancer \
-  --set autoscaling.enabled=true \
-  --set autoscaling.minReplicas=2 \
-  --set autoscaling.maxReplicas=5 \
   --wait --timeout 5m
 
 log "Istio pods:"
