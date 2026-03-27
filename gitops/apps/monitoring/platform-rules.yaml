@@ -1,0 +1,167 @@
+# Platform PrometheusRules — essential alerts for the prod-gke platform.
+# Picked up by Prometheus Operator because prometheusSpec.ruleSelector is nil
+# (matches all PrometheusRule resources in all namespaces).
+#
+# Severity levels:
+#   critical — immediate action needed (pages on-call)
+#   warning  — investigate soon (suppressed by critical via inhibit_rules)
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: platform-rules
+  namespace: monitoring
+  labels:
+    # Prometheus Operator selects rules via this label.
+    release: kube-prometheus-stack
+spec:
+  groups:
+    # ── Pod health ──────────────────────────────────────────────────────────
+    - name: pod.rules
+      rules:
+        - alert: PodCrashLooping
+          expr: |
+            increase(kube_pod_container_status_restarts_total[15m]) > 3
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is crash-looping"
+            description: >
+              Container {{ $labels.container }} in pod {{ $labels.pod }}
+              (namespace {{ $labels.namespace }}) has restarted
+              {{ $value | printf "%.0f" }} times in the last 15 minutes.
+
+        - alert: PodNotReady
+          expr: |
+            sum by (namespace, pod) (
+              max by (namespace, pod, condition) (
+                kube_pod_status_conditions{condition="Ready", status="false"}
+              )
+            ) > 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} not ready for 10m"
+            description: >
+              Pod {{ $labels.pod }} in namespace {{ $labels.namespace }}
+              has been in a non-Ready state for more than 10 minutes.
+
+    # ── Node health ─────────────────────────────────────────────────────────
+    - name: node.rules
+      rules:
+        - alert: NodeNotReady
+          expr: |
+            kube_node_status_condition{condition="Ready", status=~"false|unknown"} == 1
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Node {{ $labels.node }} is NotReady"
+            description: >
+              Node {{ $labels.node }} has been in NotReady state for more
+              than 5 minutes. GKE node auto-repair should trigger shortly —
+              investigate if the node does not recover within 10 minutes.
+
+        - alert: NodeHighMemoryUsage
+          expr: |
+            (
+              node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes
+            ) / node_memory_MemTotal_bytes * 100 > 90
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Node {{ $labels.instance }} memory usage > 90%"
+            description: >
+              Memory usage on {{ $labels.instance }} has exceeded 90% for
+              10 minutes. Consider adding nodes or reducing workload density.
+
+    # ── Storage ─────────────────────────────────────────────────────────────
+    - name: storage.rules
+      rules:
+        - alert: PVCAlmostFull
+          expr: |
+            (
+              kubelet_volume_stats_used_bytes /
+              kubelet_volume_stats_capacity_bytes
+            ) * 100 > 85
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} is {{ $value | printf \"%.0f\" }}% full"
+            description: >
+              PVC {{ $labels.persistentvolumeclaim }} in namespace
+              {{ $labels.namespace }} is {{ $value | printf "%.0f" }}% full.
+              Expand the PVC or reduce data before it reaches 100%.
+
+        - alert: PVCFull
+          expr: |
+            (
+              kubelet_volume_stats_used_bytes /
+              kubelet_volume_stats_capacity_bytes
+            ) * 100 > 95
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} is critically full"
+            description: >
+              PVC {{ $labels.persistentvolumeclaim }} in namespace
+              {{ $labels.namespace }} is {{ $value | printf "%.0f" }}% full.
+              Immediate expansion needed — writes will fail at 100%.
+
+    # ── Autoscaling ─────────────────────────────────────────────────────────
+    - name: autoscaling.rules
+      rules:
+        - alert: HPAAtMaxReplicas
+          expr: |
+            kube_horizontalpodautoscaler_status_current_replicas
+            ==
+            kube_horizontalpodautoscaler_spec_max_replicas
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "HPA {{ $labels.namespace }}/{{ $labels.horizontalpodautoscaler }} at max replicas for 15m"
+            description: >
+              HPA {{ $labels.horizontalpodautoscaler }} in namespace
+              {{ $labels.namespace }} has been at its maximum replica count
+              ({{ $value }}) for 15 minutes. Consider raising maxReplicas or
+              investigating high load.
+
+    # ── Istio control plane ─────────────────────────────────────────────────
+    - name: istio.rules
+      rules:
+        - alert: IstiodUnavailable
+          expr: |
+            absent(up{job="istiod", namespace="istio-system"} == 1)
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Istiod is unavailable"
+            description: >
+              No healthy istiod instance has been scraped for 5 minutes.
+              mTLS certificate rotation and xDS config pushes are halted.
+              Existing connections continue until cert expiry (~24h).
+
+        - alert: IstioHighErrorRate
+          expr: |
+            sum by (destination_service_name, destination_service_namespace) (
+              rate(istio_requests_total{response_code=~"5.."}[5m])
+            )
+            /
+            sum by (destination_service_name, destination_service_namespace) (
+              rate(istio_requests_total[5m])
+            ) * 100 > 5
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Istio error rate > 5% for {{ $labels.destination_service_name }}"
+            description: >
+              Service {{ $labels.destination_service_name }} in
+              {{ $labels.destination_service_namespace }} is returning
+              {{ $value | printf "%.1f" }}% 5xx errors over the last 5 minutes.

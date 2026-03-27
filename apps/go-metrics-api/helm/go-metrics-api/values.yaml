@@ -57,6 +57,12 @@ serviceMonitor:
   interval: 30s
   path: /metrics
 
+grafanaDashboard:
+  # Deploy a Grafana dashboard ConfigMap (picked up by the Grafana sidecar).
+  # Requires serviceMonitor.enabled: true and Grafana deployed with
+  # sidecar.dashboards.enabled: true and searchNamespace: ALL.
+  enabled: true
+
 istio:
   enabled: true
   # Gateway host — set to the Istio ingress gateway external IP after bootstrap.

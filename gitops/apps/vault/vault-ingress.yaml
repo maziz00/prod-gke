@@ -1,0 +1,63 @@
+# Vault UI — Istio ingress via TLS PASSTHROUGH.
+#
+# Architecture:
+#   Browser → Istio IngressGateway (port 443, TLS PASSTHROUGH)
+#             → vault-ui:8200 (Vault owns its TLS cert or runs plaintext behind mesh)
+#
+# TLS PASSTHROUGH: Istio forwards encrypted bytes without terminating TLS.
+# Vault's own TLS (or the Istio mTLS sidecar) handles encryption end-to-end.
+#
+# Setup:
+#   1. Get the ingress gateway IP:
+#        kubectl get svc istio-ingressgateway -n istio-system \
+#          -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+#   2. Point your DNS A record: vault.YOUR_DOMAIN → <INGRESS_IP>
+#   3. Update the host values below to match your domain.
+#
+# NOTE: host values use placeholder YOUR_DOMAIN — replace with your real domain.
+# No sensitive values in this file.
+---
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata:
+  name: vault-gateway
+  namespace: vault
+  annotations:
+    # Wave 3: apply after istio-base (0) → istiod (1) → istio-gateway (2) are Healthy.
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+    - port:
+        number: 443
+        name: https-vault
+        protocol: HTTPS
+      tls:
+        mode: PASSTHROUGH
+      hosts:
+        - "vault.YOUR_DOMAIN"  # Replace with your real hostname.
+
+---
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: vault-ui
+  namespace: vault
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  hosts:
+    - "vault.YOUR_DOMAIN"  # Must match the Gateway host above.
+  gateways:
+    - vault-gateway
+  tls:
+    - match:
+        - port: 443
+          sniHosts:
+            - "vault.YOUR_DOMAIN"
+      route:
+        - destination:
+            host: vault-ui
+            port:
+              number: 8200

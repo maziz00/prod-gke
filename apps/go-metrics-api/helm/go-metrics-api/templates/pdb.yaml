@@ -1,0 +1,16 @@
+{{- if .Values.podDisruptionBudget.enabled }}
+# PodDisruptionBudget — limits voluntary disruptions (node drains, rolling upgrades).
+# minAvailable: 1 ensures at least one replica stays up during cluster maintenance.
+# With replicaCount >= 2 (default), this allows Kubernetes to drain one pod at a time.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "go-metrics-api.fullname" . }}
+  labels:
+    {{- include "go-metrics-api.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "go-metrics-api.selectorLabels" . | nindent 6 }}
+{{- end }}

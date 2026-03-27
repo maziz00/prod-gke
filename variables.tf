@@ -219,3 +219,23 @@ variable "labels" {
     project    = "prod-gke"
   }
 }
+
+# --- Artifact Registry & CI/CD ---
+
+variable "artifact_registry_repo_id" {
+  description = "Artifact Registry repository ID (appears in the Docker image URL)."
+  type        = string
+  default     = "prod-gke"
+}
+
+variable "github_owner" {
+  description = "GitHub organization or username that owns the prod-gke repository. Used to scope the Workload Identity Federation binding so only your repos can authenticate."
+  type        = string
+  default     = "maziz00"
+}
+
+variable "github_repo" {
+  description = "GitHub repository name (without owner prefix). Scopes the WIF binding to a single repo."
+  type        = string
+  default     = "prod-gke"
+}

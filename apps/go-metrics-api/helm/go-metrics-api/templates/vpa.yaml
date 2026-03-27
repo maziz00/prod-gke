@@ -1,0 +1,35 @@
+{{- if .Values.vpa.enabled }}
+# VerticalPodAutoscaler — recommendation-only by default (updateMode: "Off").
+# VPA observes actual resource usage and suggests right-sized requests/limits.
+# Changing updateMode to "Auto" enables automatic pod eviction and restart with
+# updated resource requests — not recommended for production without testing.
+#
+# Requires the VPA admission controller to be installed in the cluster.
+# On GKE: enabled automatically when release channel is RAPID or REGULAR.
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: {{ include "go-metrics-api.fullname" . }}
+  labels:
+    {{- include "go-metrics-api.labels" . | nindent 4 }}
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "go-metrics-api.fullname" . }}
+  updatePolicy:
+    # "Off" = collect recommendations only, do not evict pods.
+    # "Auto" = evict and restart pods with right-sized resource requests.
+    updateMode: {{ .Values.vpa.updateMode | quote }}
+  resourcePolicy:
+    containerPolicies:
+      - containerName: {{ .Chart.Name }}
+        minAllowed:
+          cpu: 50m
+          memory: 64Mi
+        maxAllowed:
+          cpu: "2"
+          memory: 512Mi
+        # Manage both CPU and memory independently.
+        controlledResources: ["cpu", "memory"]
+{{- end }}

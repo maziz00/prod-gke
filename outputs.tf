@@ -48,3 +48,18 @@ output "get_credentials_command" {
   description = "Run this command to configure kubectl."
   value       = "gcloud container clusters get-credentials ${module.gke.cluster_name} --region ${module.gke.cluster_location} --project ${var.project_id}"
 }
+
+output "artifact_registry_url" {
+  description = "Artifact Registry URL. Use as the Docker image base: <url>/IMAGE_NAME:TAG"
+  value       = module.artifact_registry.repository_url
+}
+
+output "ci_sa_email" {
+  description = "CI service account email. Set as GCP_CI_SA_EMAIL in GitHub Actions secrets."
+  value       = module.artifact_registry.ci_sa_email
+}
+
+output "wif_provider" {
+  description = "WIF provider resource name. Set as GCP_WIF_PROVIDER in GitHub Actions secrets."
+  value       = module.artifact_registry.wif_provider
+}

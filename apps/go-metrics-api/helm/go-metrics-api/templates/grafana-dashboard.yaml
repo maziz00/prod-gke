@@ -1,0 +1,124 @@
+{{- if .Values.serviceMonitor.enabled }}
+# Grafana dashboard ConfigMap for go-metrics-api.
+# The Grafana sidecar (dashboards.searchNamespace: ALL) picks up any ConfigMap
+# in any namespace that has the label grafana_dashboard: "1".
+#
+# Panels:
+#   - Request rate (RPS) by status code
+#   - HTTP error rate (5xx percentage)
+#   - Request latency: p50 / p95 / p99
+#   - Active replicas (HPA target vs actual)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "go-metrics-api.fullname" . }}-dashboard
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "go-metrics-api.labels" . | nindent 4 }}
+    grafana_dashboard: "1"
+data:
+  go-metrics-api.json: |-
+    {
+      "title": "go-metrics-api",
+      "uid": "go-metrics-api",
+      "tags": ["go-metrics-api", "platform"],
+      "timezone": "browser",
+      "refresh": "30s",
+      "time": { "from": "now-1h", "to": "now" },
+      "schemaVersion": 36,
+      "panels": [
+        {
+          "id": 1,
+          "title": "Request Rate (RPS)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+          "fieldConfig": {
+            "defaults": { "unit": "reqps", "min": 0 }
+          },
+          "targets": [
+            {
+              "expr": "sum by (status_code) (rate(api_http_requests_total{namespace=\"{{ .Release.Namespace }}\"}[5m]))",
+              "legendFormat": "{{ "{{status_code}}" }}"
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "title": "Error Rate (5xx %)",
+          "type": "stat",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "thresholds": {
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 1 },
+                  { "color": "red", "value": 5 }
+                ]
+              }
+            }
+          },
+          "targets": [
+            {
+              "expr": "100 * sum(rate(api_http_requests_total{namespace=\"{{ .Release.Namespace }}\", status_code=~\"5..\"}[5m])) / sum(rate(api_http_requests_total{namespace=\"{{ .Release.Namespace }}\"}[5m]))",
+              "legendFormat": "Error Rate"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "title": "Request Latency (p50 / p95 / p99)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+          "fieldConfig": {
+            "defaults": { "unit": "s", "min": 0 }
+          },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.50, sum by (le) (rate(api_http_request_duration_seconds_bucket{namespace=\"{{ .Release.Namespace }}\"}[5m])))",
+              "legendFormat": "p50"
+            },
+            {
+              "expr": "histogram_quantile(0.95, sum by (le) (rate(api_http_request_duration_seconds_bucket{namespace=\"{{ .Release.Namespace }}\"}[5m])))",
+              "legendFormat": "p95"
+            },
+            {
+              "expr": "histogram_quantile(0.99, sum by (le) (rate(api_http_request_duration_seconds_bucket{namespace=\"{{ .Release.Namespace }}\"}[5m])))",
+              "legendFormat": "p99"
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "title": "Replicas",
+          "type": "stat",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "min": 0,
+              "thresholds": {
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "green", "value": 1 }
+                ]
+              }
+            }
+          },
+          "targets": [
+            {
+              "expr": "kube_deployment_status_replicas_ready{namespace=\"{{ .Release.Namespace }}\", deployment=~\"{{ include "go-metrics-api.fullname" . }}\"}",
+              "legendFormat": "Ready"
+            },
+            {
+              "expr": "kube_deployment_spec_replicas{namespace=\"{{ .Release.Namespace }}\", deployment=~\"{{ include "go-metrics-api.fullname" . }}\"}",
+              "legendFormat": "Desired"
+            }
+          ]
+        }
+      ]
+    }
+{{- end }}

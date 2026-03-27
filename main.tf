@@ -90,6 +90,19 @@ module "gke" {
   labels              = var.labels
 }
 
+module "artifact_registry" {
+  source = "./modules/artifact-registry"
+
+  project_id    = var.project_id
+  location      = var.region
+  repository_id = var.artifact_registry_repo_id
+  cluster_name  = var.cluster_name
+  node_sa_email = module.iam.node_sa_email
+  github_owner  = var.github_owner
+  github_repo   = var.github_repo
+  labels        = var.labels
+}
+
 # ── Workload Identity bindings ────────────────────────────────────────────────
 # These must run AFTER the GKE cluster exists because the WI pool is created by GKE.
 

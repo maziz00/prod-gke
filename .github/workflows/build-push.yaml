@@ -1,0 +1,92 @@
+# CI/CD pipeline: build and push go-metrics-api to Artifact Registry.
+#
+# Triggers on any push to main that touches the app or its Helm chart.
+# Authenticates to GCP via Workload Identity Federation — no service account keys.
+#
+# Required GitHub Actions secrets (set after `terraform apply`):
+#   GCP_PROJECT_ID       ← terraform output -raw gcp_project_id
+#   GCP_WIF_PROVIDER     ← terraform output -raw wif_provider
+#   GCP_CI_SA_EMAIL      ← terraform output -raw ci_sa_email
+#   AR_LOCATION          ← e.g. us-central1  (same as var.region)
+#   AR_REPO_ID           ← terraform output -raw artifact_registry_url | cut -d/ -f3
+#
+# GitOps update:
+#   After a successful push, the workflow updates the image tag in
+#   gitops/apps/sample-app/sample-app.yaml and commits back to main.
+#   ArgoCD detects the change and re-syncs go-metrics-api automatically.
+
+name: build-push-go-metrics-api
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/go-metrics-api/**"
+      - ".github/workflows/build-push.yaml"
+
+permissions:
+  contents: write          # Needed to commit the updated image tag back to the repo.
+  id-token: write          # Needed for Workload Identity Federation OIDC token.
+
+jobs:
+  build-and-push:
+    name: Build and push Docker image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Authenticate to GCP via WIF — no service account keys.
+      # GCP_WIF_PROVIDER format: projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/POOL/providers/PROVIDER
+      - name: Authenticate to GCP
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_CI_SA_EMAIL }}
+
+      # Configure Docker to push to Artifact Registry using the GCP token.
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ secrets.AR_LOCATION }}-docker.pkg.dev --quiet
+
+      - name: Set image metadata
+        id: meta
+        run: |
+          SHORT_SHA="${GITHUB_SHA::8}"
+          IMAGE="${{ secrets.AR_LOCATION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ secrets.AR_REPO_ID }}/go-metrics-api"
+          echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "tag=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "full_image=${IMAGE}:${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            --tag "${{ steps.meta.outputs.full_image }}" \
+            --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
+            --label "org.opencontainers.image.revision=${{ github.sha }}" \
+            ./apps/go-metrics-api
+
+      - name: Push Docker image
+        run: docker push "${{ steps.meta.outputs.full_image }}"
+
+      # Update the image tag in the ArgoCD Application manifest and commit back.
+      # ArgoCD watches the repo and will re-sync go-metrics-api automatically.
+      - name: Update image tag in GitOps manifest
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          TAG="${{ steps.meta.outputs.tag }}"
+
+          # Replace the tag value in the ArgoCD Application inline values block.
+          # Matches:  tag: "1.0.0"  →  tag: "SHORT_SHA"
+          sed -i "s|tag: \"[^\"]*\"|tag: \"${TAG}\"|g" \
+            gitops/apps/sample-app/sample-app.yaml
+
+          git add gitops/apps/sample-app/sample-app.yaml
+          git diff --cached --quiet && echo "No tag change, skipping commit." && exit 0
+
+          git commit -m "(ci): update go-metrics-api image tag to ${TAG} [skip ci]"
+          git push
