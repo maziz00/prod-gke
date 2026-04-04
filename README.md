@@ -225,6 +225,12 @@ $(terraform output -raw get_credentials_command)
 ESO syncs these secrets into the cluster. Create them before bootstrapping ArgoCD so Grafana and AlertManager start cleanly.
 
 ```bash
+# Run secret bootstrap script and provide secret and gcp project id interactively
+./scripts/bootstrap_secrets.sh $GCP_PROJECT_ID
+grafana-admin-credentials
+```
+
+```bash
 # Grafana admin credentials (replace <password> with a strong random value)
 printf '{"admin-user":"admin","admin-password":"<password>"}' | \
   gcloud secrets create grafana-admin-credentials \
